@@ -6,6 +6,7 @@ import {
     getAllGames,
     getAllGameIds,
     getGameById,
+    getCatalogSummary,
 } from './games';
 
 async function seedGames(db: Database, count: number): Promise<void> {
@@ -62,5 +63,44 @@ describe('games data-access helpers', () => {
     it('returns null for a non-existent game', async () => {
         await seedGames(db, 2);
         expect(await getGameById(db, 99999)).toBeNull();
+    });
+
+    it('computes the total game count and average rating across rated games', async () => {
+        const [category] = await db
+            .insert(categories)
+            .values({ name: 'Strategy', description: 'cat' })
+            .returning({ id: categories.id });
+        const [publisher] = await db
+            .insert(publishers)
+            .values({ name: 'Pub One', description: 'pub' })
+            .returning({ id: publishers.id });
+
+        await db.insert(games).values([
+            { title: 'Game A', description: 'desc a', starRating: 4.5, categoryId: category.id, publisherId: publisher.id },
+            { title: 'Game B', description: 'desc b', starRating: 3.5, categoryId: category.id, publisherId: publisher.id },
+            { title: 'Game C', description: 'desc c', starRating: null, categoryId: category.id, publisherId: publisher.id },
+        ]);
+
+        await expect(getCatalogSummary(db)).resolves.toEqual({ totalGames: 3, averageRating: 4.0 });
+    });
+
+    it('handles empty and unrated catalog edge cases', async () => {
+        await expect(getCatalogSummary(db)).resolves.toEqual({ totalGames: 0, averageRating: null });
+
+        const [category] = await db
+            .insert(categories)
+            .values({ name: 'Strategy', description: 'cat' })
+            .returning({ id: categories.id });
+        const [publisher] = await db
+            .insert(publishers)
+            .values({ name: 'Pub One', description: 'pub' })
+            .returning({ id: publishers.id });
+
+        await db.insert(games).values([
+            { title: 'Game A', description: 'desc a', starRating: null, categoryId: category.id, publisherId: publisher.id },
+            { title: 'Game B', description: 'desc b', starRating: null, categoryId: category.id, publisherId: publisher.id },
+        ]);
+
+        await expect(getCatalogSummary(db)).resolves.toEqual({ totalGames: 2, averageRating: null });
     });
 });

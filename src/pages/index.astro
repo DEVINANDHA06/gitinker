@@ -4,11 +4,14 @@ import GameCard from '../components/GameCard.astro';
 import PageHero from '../components/PageHero.astro';
 import EmptyState from '../components/EmptyState.astro';
 import { getDatabase } from '../lib/db';
-import { getAllGames } from '../lib/games';
+import { getAllGames, getCatalogSummary } from '../lib/games';
 
 export const prerender = true;
 
 const games = await getAllGames(getDatabase());
+const catalogSummary = await getCatalogSummary(getDatabase());
+const averageRatingText =
+  catalogSummary.averageRating === null ? 'No ratings yet' : `${catalogSummary.averageRating.toFixed(2)} / 5`;
 ---
 
 <Layout title="Tailspin Toys - Crowdfunding your new favorite game!">
@@ -17,6 +20,26 @@ const games = await getAllGames(getDatabase());
       title="Welcome to Tailspin Toys"
       subtitle="Find your next game! And maybe even back one! Explore our collection!"
     />
+
+    <section class="mb-8 grid gap-4 sm:grid-cols-2" aria-label="Catalog summary" data-testid="catalog-summary">
+      <div class="rounded-xl border border-slate-700 bg-slate-800 p-5 shadow-lg" data-testid="catalog-summary-total">
+        <p class="text-sm font-medium uppercase tracking-wide text-slate-300">Catalog size</p>
+        <p class="mt-3 text-3xl font-semibold text-slate-100" aria-label={`${catalogSummary.totalGames} games in the catalog`}>
+          {catalogSummary.totalGames}
+        </p>
+        <p class="mt-2 text-sm text-slate-400">games in the catalog</p>
+      </div>
+
+      <div class="rounded-xl border border-slate-700 bg-slate-800 p-5 shadow-lg" data-testid="catalog-summary-rating">
+        <p class="text-sm font-medium uppercase tracking-wide text-slate-300">Average rating</p>
+        <p class="mt-3 text-3xl font-semibold text-slate-100" aria-label={averageRatingText}>
+          {averageRatingText}
+        </p>
+        <p class="mt-2 text-sm text-slate-400">
+          {catalogSummary.averageRating === null ? 'Rated games will appear here.' : 'Based on rated titles'}
+        </p>
+      </div>
+    </section>
 
     <div>
       <h2 class="text-2xl font-medium mb-6 text-slate-100">Featured Games</h2>
