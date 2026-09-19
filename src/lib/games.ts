@@ -1,4 +1,4 @@
-import { eq, asc } from 'drizzle-orm';
+import { eq, asc, avg, count, isNotNull } from 'drizzle-orm';
 import type { Database } from './db';
 import { games, categories, publishers } from '../../db/schema';
 import type { Game } from '../types/game';
@@ -50,6 +50,11 @@ function baseGamesQuery(db: Database) {
         .leftJoin(publishers, eq(games.publisherId, publishers.id));
 }
 
+export type CatalogSummary = {
+    totalGames: number;
+    averageRating: number | null;
+};
+
 /** All games ordered by title. */
 export async function getAllGames(db: Database): Promise<Game[]> {
     const rows = await baseGamesQuery(db).orderBy(asc(games.title));
@@ -66,4 +71,32 @@ export async function getAllGameIds(db: Database): Promise<number[]> {
 export async function getGameById(db: Database, id: number): Promise<Game | null> {
     const row = await baseGamesQuery(db).where(eq(games.id, id)).get();
     return row ? mapGame(row) : null;
+}
+
+/** Aggregate catalog stats: total games and the average star rating across rated games. */
+export async function getCatalogSummary(db: Database): Promise<CatalogSummary> {
+    const totalResult = await db.select({ totalGames: count(games.id) }).from(games).get();
+    const averageResult = await db
+        .select({ averageRating: avg(games.starRating) })
+        .from(games)
+        .where(isNotNull(games.starRating))
+        .get();
+
+    const rawTotalGames = totalResult?.totalGames ?? 0;
+    const totalGames = typeof rawTotalGames === 'number' ? rawTotalGames : Number(rawTotalGames) || 0;
+    const rawAverageRating = averageResult?.averageRating ?? null;
+    const parsedAverageRating =
+        typeof rawAverageRating === 'number'
+            ? rawAverageRating
+            : typeof rawAverageRating === 'string'
+              ? Number(rawAverageRating)
+              : null;
+
+    return {
+        totalGames,
+        averageRating:
+            typeof parsedAverageRating === 'number' && Number.isFinite(parsedAverageRating)
+                ? Number(parsedAverageRating.toFixed(2))
+                : null,
+    };
 }
